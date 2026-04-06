@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
     VECTOR_DB_TYPE: str = "faiss"
     SIMILARITY_THRESHOLD: float = 0.7
+    GITHUB_WEBHOOK_SECRET: Optional[str] = None
+    GITHUB_TOKEN: Optional[str] = None
+    GEMINI_API_KEY: Optional[str] = None
 
     class Config:
         env_file = ".env"
