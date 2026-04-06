@@ -197,7 +197,7 @@ export function Hero({ onAnalyze }: HeroProps) {
             variants={itemVariants}
             className="mb-4 max-w-2xl text-lg sm:text-xl text-[#7d8590] leading-relaxed font-light"
           >
-            Paste any public GitHub issue URL. Our pipeline scrapes the live data, runs NLP classification, detects duplicates via vector search, and delivers AI-powered triage in under 2 seconds.
+            Analyze any GitHub issue instantly with AI. Our pipeline scrapes the live data, runs NLP classification, detects duplicates via vector search, and delivers AI-powered triage in under 2 seconds.
           </motion.p>
 
           {/* Live ticker */}
@@ -336,7 +336,7 @@ export function Hero({ onAnalyze }: HeroProps) {
             className="mt-12 flex flex-wrap justify-center items-center gap-6 text-sm text-[#484f58]"
           >
             {[
-              { icon: Star, text: "Used by 2,400+ repos" },
+              { icon: Star, text: "Used by 2,800+ repos" },
               { icon: Users, text: "8,000+ maintainers" },
               { icon: CheckCircle2, text: "99.9% uptime" },
               { icon: Shield, text: "No data stored" },
