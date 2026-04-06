@@ -117,21 +117,32 @@ async def analyze_issue(request: AnalysisRequest):
 
 @app.post("/webhook/github")
 async def github_webhook(request: Request, background_tasks: BackgroundTasks):
-    """GitHub repository webhook endpoint."""
-    # 1. Read raw payload & headers
+    """GitHub repository webhook endpoint — fixed stream-read and diagnostic logging."""
+    # 1. Read raw payload ONCE — stream can only be consumed once
     payload_body = await request.body()
     signature_header = request.headers.get("x-hub-signature-256", "")
     event_type = request.headers.get("x-github-event", "")
 
-    # 2. Verify signature (will raise HTTPException if invalid)
-    webhook_handler.verify_signature(payload_body, signature_header)
+    logger.info("--- WEBHOOK RECEIVED ---")
+    logger.info(f"Event: '{event_type}' | Body length: {len(payload_body)} bytes | Sig prefix: {signature_header[:30]}")
 
+    # 2. Verify signature
     try:
-        payload_json = await request.json()
-    except Exception:
+        webhook_handler.verify_signature(payload_body, signature_header)
+    except HTTPException as e:
+        logger.error(f"Signature Verification FAILED: {e.detail}")
+        raise e
+
+    # 3. Parse JSON from already-read bytes (NOT from request.json() which re-reads the stream)
+    import json as json_lib
+    try:
+        payload_json = json_lib.loads(payload_body)
+    except Exception as parse_err:
+        logger.error(f"Failed to parse JSON payload: {parse_err}")
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
-    # 3. Process asynchronously
+    # 4. Hand off to background task immediately — give GitHub its 200 OK fast
+    logger.info(f"Dispatching background task for '{event_type}' event...")
     background_tasks.add_task(webhook_handler.process_webhook, event_type, payload_json)
-    
-    return {"status": "Accepted", "message": "Webhook received and processing in background."}
+
+    return {"status": "Accepted", "message": "Webhook received and processing."}
