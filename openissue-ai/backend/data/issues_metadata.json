@@ -1,0 +1,142 @@
+[
+  {
+    "id": "1",
+    "title": "Application crashes on startup with NullPointerException",
+    "body": "When I try to start the application, it immediately crashes with a NullPointerException.\n\nStack trace:\n```\njava.lang.NullPointerException\n    at com.app.core.Initializer.init(Initializer.java:45)\n    at com.app.Main.main(Main.java:12)\n```\n\nEnvironment:\n- Java 17\n- macOS 14.0\n- Version 2.3.1\n\nThis is blocking our production deployment.",
+    "type": "bug",
+    "priority": "critical"
+  },
+  {
+    "id": "2",
+    "title": "Add dark mode support",
+    "body": "It would be great to have a dark mode option in the settings.\n\nMany users work late at night and the bright interface can be straining on the eyes.\n\nSuggested implementation:\n- Add toggle in settings\n- Persist preference\n- Support system preference detection",
+    "type": "feature",
+    "priority": "medium"
+  },
+  {
+    "id": "3",
+    "title": "How do I configure the database connection?",
+    "body": "I'm new to this project and I can't figure out how to set up the database.\n\nThe documentation mentions a config file but I don't see where to put my credentials.\n\nCan someone point me to the right documentation or provide an example?",
+    "type": "question",
+    "priority": "low"
+  },
+  {
+    "id": "4",
+    "title": "Memory leak in image processing module",
+    "body": "After processing about 100 images, memory usage climbs to 8GB and never goes down.\n\nI've attached a heap dump showing the issue. The ImageProcessor class seems to be holding references to all processed images.\n\nSteps to reproduce:\n1. Start the application\n2. Process 100+ images\n3. Observe memory in task manager\n\nThis is causing our server to crash every few hours.",
+    "type": "bug",
+    "priority": "high"
+  },
+  {
+    "id": "5",
+    "title": "Support for GraphQL API",
+    "body": "We'd love to see GraphQL support alongside the existing REST API.\n\nBenefits:\n- More efficient data fetching\n- Better typing support\n- Reduced over-fetching\n\nHappy to contribute if there's interest!",
+    "type": "feature",
+    "priority": "medium"
+  },
+  {
+    "id": "6",
+    "title": "Authentication fails with special characters in password",
+    "body": "Users with special characters like @, #, or $ in their passwords cannot log in.\n\nError message: \"Invalid credentials\"\n\nBut when I change to a simple password, login works fine.\n\nThis seems like an encoding issue. Urgent as it's affecting many users.",
+    "type": "bug",
+    "priority": "high"
+  },
+  {
+    "id": "7",
+    "title": "Add export to PDF functionality",
+    "body": "Users have been requesting the ability to export reports as PDF.\n\nRequirements:\n- Include all charts and graphs\n- Proper formatting\n- Header/footer with date\n- Page numbers\n\nThis would help with sharing reports in meetings.",
+    "type": "feature",
+    "priority": "medium"
+  },
+  {
+    "id": "8",
+    "title": "What's the recommended Node.js version?",
+    "body": "The README doesn't specify which Node.js version to use.\n\nI tried with Node 18 and got some warnings, but it seems to work.\n\nShould I use Node 16, 18, or 20?",
+    "type": "question",
+    "priority": "low"
+  },
+  {
+    "id": "9",
+    "title": "Security vulnerability in dependency",
+    "body": "npm audit is reporting a critical vulnerability:\n\n```\nlodash  <4.17.21\nSeverity: critical\nPrototype Pollution - https://github.com/advisories/GHSA-jf85-cpcp-j695\n```\n\nThis needs to be addressed ASAP as it could allow remote code execution.",
+    "type": "bug",
+    "priority": "critical"
+  },
+  {
+    "id": "10",
+    "title": "Implement webhook notifications",
+    "body": "We need the ability to send webhook notifications when certain events occur.\n\nEvents to support:\n- New user registration\n- Order completed\n- Payment failed\n- Inventory low\n\nThis would help integrate with Slack, Discord, and other services.",
+    "type": "feature",
+    "priority": "medium"
+  },
+  {
+    "id": "11",
+    "title": "API returns 500 error on large payloads",
+    "body": "When sending requests larger than 1MB, the API returns a 500 Internal Server Error.\n\nExpected: Return 413 Payload Too Large with helpful message\nActual: 500 error with no body\n\nThis is confusing for API consumers.",
+    "type": "bug",
+    "priority": "medium"
+  },
+  {
+    "id": "12",
+    "title": "How to run tests locally?",
+    "body": "I cloned the repo and want to run the tests before submitting a PR.\n\nI tried:\n- npm test (not found)\n- yarn test (errors)\n- make test (no makefile)\n\nWhat's the correct command?",
+    "type": "question",
+    "priority": "low"
+  },
+  {
+    "id": "13",
+    "title": "Add multi-language support (i18n)",
+    "body": "Our user base is expanding globally and we need internationalization support.\n\nLanguages needed:\n- Spanish\n- French  \n- German\n- Japanese\n- Chinese (Simplified)\n\nWe should use a standard i18n library and have translation files that contributors can help with.",
+    "type": "feature",
+    "priority": "high"
+  },
+  {
+    "id": "14",
+    "title": "Login page shows blank after OAuth redirect",
+    "body": "After authenticating with Google OAuth, users are redirected back to a blank login page.\n\nThe URL has the correct tokens but the page doesn't render.\n\nConsole shows:\n```\nUncaught TypeError: Cannot read property 'user' of undefined\n```\n\nThis broke in version 2.4.0.",
+    "type": "bug",
+    "priority": "high"
+  },
+  {
+    "id": "15",
+    "title": "Improve search performance",
+    "body": "Search is very slow when we have more than 10,000 records.\n\nCurrent: ~5 seconds\nExpected: <500ms\n\nWe should consider:\n- Adding database indexes\n- Implementing elasticsearch\n- Caching frequent searches",
+    "type": "feature",
+    "priority": "medium"
+  },
+  {
+    "id": "16",
+    "title": "TypeError when clicking submit button twice",
+    "body": "If you click the submit button twice quickly, you get:\n\n```\nTypeError: Cannot read properties of null (reading 'value')\n    at handleSubmit (Form.js:42)\n```\n\nWorkaround: Add debouncing or disable button after first click.",
+    "type": "bug",
+    "priority": "low"
+  },
+  {
+    "id": "17",
+    "title": "Add rate limiting to API",
+    "body": "We need rate limiting to prevent abuse and ensure fair usage.\n\nProposed limits:\n- 100 requests/minute for free tier\n- 1000 requests/minute for paid tier\n- Custom limits for enterprise\n\nShould return 429 with Retry-After header when exceeded.",
+    "type": "feature",
+    "priority": "high"
+  },
+  {
+    "id": "18",
+    "title": "Database migration fails on PostgreSQL 15",
+    "body": "The migration script fails on PostgreSQL 15 with:\n\n```\nERROR: syntax error at or near \"GROUP\"\nLINE 42: ...GROUP BY user_id...\n```\n\nThis is because of the new reserved keyword handling in PG15.\n\nWorkaround: Use double quotes around GROUP.\n\nBlocking new deployments.",
+    "type": "bug",
+    "priority": "critical"
+  },
+  {
+    "id": "19",
+    "title": "Can I use this with Docker?",
+    "body": "Is there an official Docker image or Dockerfile?\n\nI want to deploy this in Kubernetes but need a containerized version.\n\nIf there's no official image, any tips on creating one?",
+    "type": "question",
+    "priority": "low"
+  },
+  {
+    "id": "20",
+    "title": "Add keyboard shortcuts",
+    "body": "Power users would benefit from keyboard shortcuts:\n\n- Ctrl+S: Save\n- Ctrl+N: New item\n- Ctrl+/: Open command palette\n- Esc: Close modal\n\nThis would greatly improve productivity for users who prefer keyboard navigation.",
+    "type": "feature",
+    "priority": "low"
+  }
+]

@@ -3,6 +3,7 @@ from app.services.classifier import IssueClassifier
 from app.services.priority import PriorityScorer
 from app.services.embeddings import EmbeddingsManager
 from app.services.vector_store import VectorStore
+from app.services.llm_generator import LLMGenerator
 import logging
 import re
 import random
@@ -16,6 +17,7 @@ class IssueAnalyzer:
         self.scorer = PriorityScorer()
         self.embedder = EmbeddingsManager()
         self.vector_store = VectorStore()
+        self.llm = LLMGenerator()
 
     async def initialize(self):
         logger.info("Initializing NLP models...")
@@ -33,27 +35,37 @@ class IssueAnalyzer:
         # 2. Embeddings & Semantic Search
         vector = self.embedder.generate_embedding(raw_text)
         similar_issues = self.vector_store.search(vector, k=3, threshold=0.5)
-        
-        # 3. Classify - using enhanced classifier
-        issue_type, confidence = self.classifier.classify(nlp_data, raw_text)
-        
-        # 4. Priority scoring with comment/reaction signals
-        priority_level, priority_score = self.scorer.score(nlp_data, raw_text, issue_type, metadata, issue_comments, issue_reactions)
-        
-        # 5. AI Reasoning Engine - content-aware, deterministic
-        reasoning_steps = self._build_reasoning_trace(title, body, nlp_data, issue_type, priority_level, metadata)
-        
-        # 6. Explanation from reasoning pipeline
-        explanations = [step["detail"] for step in reasoning_steps]
 
-        # 7. Auto-Reply that's context-aware
-        suggested_reply = self._generate_reply(title, issue_type, priority_level, similar_issues, nlp_data, metadata)
+        # 3. LLM Reasoning (Choice B - Primary Brain)
+        llm_analysis = await self.llm.generate_reasoned_analysis(title, body, nlp_data)
         
-        # 8. Web Suggestions — keyword-driven, content-aware
-        web_suggestions = self._generate_web_advice(title, body, issue_type, nlp_data)
+        if llm_analysis:
+            # LLM BRAIN OVERRIDE
+            issue_type = llm_analysis["classification"].lower()
+            priority_level = llm_analysis["priority"].lower()
+            suggested_labels = llm_analysis["labels"]
+            suggested_reply = llm_analysis["response"]
+            tech_domain = llm_analysis.get("tech_domain", "None")
+            confidence = 0.98
+            is_llm_generated = True
+        else:
+            # HEURISTIC FALLBACK
+            issue_type, confidence = await self.classifier.classify(nlp_data, raw_text, embedder=self.embedder)
+            priority_level, _ = self.scorer.score(nlp_data, raw_text, issue_type, metadata, issue_comments, issue_reactions)
+            suggested_reply = self.llm.heuristic_fallback_reply(issue_type.capitalize(), priority_level.capitalize())
+            suggested_labels = self._suggest_labels(issue_type, priority_level, nlp_data, raw_text)
+            tech_domain = "None"
+            is_llm_generated = False
+
+        # 4. Priority score (numerical baseline)
+        _, priority_score = self.scorer.score(nlp_data, raw_text, issue_type, metadata, issue_comments, issue_reactions)
         
-        # 9. Suggested labels
-        suggested_labels = self._suggest_labels(issue_type, priority_level, nlp_data, raw_text)
+        # 5. AI Reasoning Engine - content-aware Trace
+        reasoning_steps = self._build_reasoning_trace(title, body, nlp_data, issue_type, priority_level, metadata)
+        explanations = [step["detail"] for step in reasoning_steps]
+        
+        # 6. Web Suggestions — Domain-Locked
+        web_suggestions = self._generate_web_advice(title, body, issue_type, nlp_data, tech_domain)
         
         return {
             "issue_title": title,
@@ -69,6 +81,7 @@ class IssueAnalyzer:
             "explanation": explanations,
             "reasoning_steps": reasoning_steps,
             "suggested_reply": suggested_reply,
+            "is_llm_generated": is_llm_generated,
             "web_suggestions": web_suggestions,
             "suggested_labels": suggested_labels,
             "confidence_overall": confidence,
@@ -158,15 +171,16 @@ class IssueAnalyzer:
         pool = bug_kws if issue_type == "bug" else (feat_kws if issue_type == "feature" else q_kws)
         return [kw for kw in pool if kw in all_text]
 
-    def _generate_web_advice(self, title: str, body: str, issue_type: str, nlp_data: dict) -> list:
-        """Content-driven, specific advice matching actual issue keywords."""
+    def _generate_web_advice(self, title: str, body: str, issue_type: str, nlp_data: dict, tech_domain: str = "None") -> list:
+        """Content-driven, specific advice with Domain Locking and Regex hardening."""
         text = f"{title} {body}".lower()
         suggestions = []
 
         # --- Technology stack detection ---
         tech_patterns = [
             {
-                "match": ["react", "jsx", "tsx", "next.js", "nextjs", "hydration", "useState", "useEffect"],
+                "domain": "React",
+                "match": [r"react", r"jsx", r"tsx", r"next\.js", r"nextjs", r"hydration", r"usestate", r"useeffect"],
                 "source": "React Docs & Stack Overflow",
                 "title": "React Component Lifecycle & Rendering Issues",
                 "advice": "For React rendering bugs, check component lifecycle, useEffect dependency arrays, and ensure server/client hydration parity. If using Next.js, verify getServerSideProps returns vs getStaticProps caching behavior.",
@@ -174,7 +188,8 @@ class IssueAnalyzer:
                 "search_query": f"site:stackoverflow.com OR site:github.com {title[:60]} react fix"
             },
             {
-                "match": ["python", "django", "flask", "fastapi", "asyncio", "uvicorn", "pydantic"],
+                "domain": "Python",
+                "match": [r"python", r"django", r"flask", r"fastapi", r"asyncio", r"uvicorn", r"pydantic"],
                 "source": "Python Docs & PyPI Issues",
                 "title": "Python/Async Runtime Errors",
                 "advice": "For Python async errors, verify event loop usage, async/await chains, and that all coroutines are awaited. Check for missing dependencies or version mismatches in requirements.txt.",
@@ -182,47 +197,26 @@ class IssueAnalyzer:
                 "search_query": f"site:stackoverflow.com {title[:60]} python"
             },
             {
-                "match": ["docker", "container", "kubernetes", "k8s", "pod", "helm", "oom", "memory limit"],
-                "source": "Docker Hub & DevOps Community",
-                "title": "Container / Orchestration Issue",
-                "advice": "OOM or container errors are often caused by insufficient memory limits in pod specs or docker-compose. Try increasing `--memory` flag or adjust `resources.limits.memory` in your K8s manifest. Check `kubectl describe pod` for events.",
-                "url": "https://docs.docker.com/config/containers/resource_constraints/",
-                "search_query": f"site:stackoverflow.com OR site:github.com {title[:60]} docker kubernetes fix"
+                "domain": "Rust",
+                "match": [r"rust", r"cargo", r"trait", r"impl", r"borrow", r"ownership", r"lifetime", r"sync", r"send"],
+                "source": "Rust Language Docs",
+                "title": "Rust Trait / Memory Management Issue",
+                "advice": "For Rust development, issues often involve Send/Sync trait requirements for thread safety or lifetime constraints in structs. Ensure traits are correctly implemented for your types to satisfy the compiler's borrow checker.",
+                "url": "https://doc.rust-lang.org/book/ch10-02-traits.html",
+                "search_query": f"site:stackoverflow.com OR site:github.com {title[:60]} rust trait fix"
             },
             {
-                "match": ["github actions", "workflow", "ci", "cd", "yaml", "runner", "action", "pipeline"],
-                "source": "GitHub Actions Docs",
-                "title": "CI/CD Workflow Configuration Issue",
-                "advice": "GitHub Actions failures often stem from incorrect event triggers, missing secrets, or outdated action versions. Validate your YAML with 'act' locally. Pin action versions with SHA for stability.",
-                "url": "https://docs.github.com/en/actions/troubleshooting-github-actions",
-                "search_query": f"site:github.com/orgs/actions OR site:stackoverflow.com {title[:60]} github actions"
-            },
-            {
-                "match": ["typescript", "ts", "type error", "any", "interface", "generic", "tsc"],
+                "domain": "TypeScript",
+                "match": [r"typescript", r"ts", r"type error", r"interface", r"generic", r"tsc"],
                 "source": "TypeScript Docs",
                 "title": "TypeScript Type System Error",
-                "advice": "TypeScript type errors often surface when third-party library types are mismatched. Use `@types/` packages or declare modules with `declare module`. Check strict mode settings in `tsconfig.json`.",
+                "advice": "TypeScript type errors often surface when third-party library types are mismatched. Use @types/ packages or declare modules with declare module. Check strict mode settings in tsconfig.json.",
                 "url": "https://www.typescriptlang.org/docs/handbook/2/types-from-types.html",
                 "search_query": f"site:stackoverflow.com {title[:60]} typescript"
             },
             {
-                "match": ["database", "sql", "postgres", "mysql", "sqlite", "orm", "migration", "query", "prisma", "sqlalchemy"],
-                "source": "Database & ORM Documentation",
-                "title": "Database / ORM Query Issue",
-                "advice": "Database errors often relate to schema migrations out of sync, incorrect connection pooling, or query builder misuse. Run migrations fresh, inspect raw SQL output with ORM logging enabled, and check connection string formatting.",
-                "url": "https://stackoverflow.com/questions/tagged/sqlalchemy",
-                "search_query": f"site:stackoverflow.com {title[:60]} database sql fix"
-            },
-            {
-                "match": ["null", "undefined", "cannot read", "null pointer", "nullpointerexception", "npe", "typeerror"],
-                "source": "Stack Overflow Community",
-                "title": "Null / Undefined Reference Exception",
-                "advice": "This is a classic null-safety violation. Use optional chaining (`obj?.prop`), nullish coalescing (`??`), or strict null checks. Ensure API responses are validated before accessing nested fields.",
-                "url": "https://stackoverflow.com/questions/tagged/null-pointer-exception",
-                "search_query": f"site:stackoverflow.com {title[:60]} null undefined fix"
-            },
-            {
-                "match": ["authentication", "auth", "jwt", "token", "oauth", "session", "cookie", "login", "401", "403"],
+                "domain": "Auth",
+                "match": [r"authentication", r"auth", r"jwt", r"token", r"oauth", r"session", r"cookie", r"login", r"401", r"403"],
                 "source": "Auth0 Blog & Security Docs",
                 "title": "Authentication / Authorization Failure",
                 "advice": "Auth issues commonly involve expired tokens, incorrect CORS headers blocking preflight, or missing session cookies on cross-origin requests. Verify token expiry, refresh logic, and ensure credentials are included in fetch/xhr calls.",
@@ -230,49 +224,41 @@ class IssueAnalyzer:
                 "search_query": f"site:stackoverflow.com {title[:60]} authentication jwt fix"
             },
             {
-                "match": ["memory leak", "heap", "gc", "garbage", "performance", "slow", "cpu", "profil"],
-                "source": "Performance Engineering Resources",
-                "title": "Memory / Performance Degradation",
-                "advice": "Memory leaks in long-running processes are often caused by uncleaned event listeners, accumulating cache, or circular references. Use profiling tools (heapdump for Node, memory_profiler for Python) to identify the leak source.",
-                "url": "https://nodejs.org/en/learn/diagnostics/memory/using-heap-profiler",
-                "search_query": f"site:stackoverflow.com {title[:60]} memory leak performance fix"
+                "domain": "Database",
+                "match": [r"database", r"sql", r"postgres", r"mysql", r"sqlite", r"orm", r"migration", r"query", r"prisma", r"sqlalchemy"],
+                "source": "Database & ORM Documentation",
+                "title": "Database / ORM Query Issue",
+                "advice": "Database errors often relate to schema migrations out of sync, incorrect connection pooling, or query builder misuse. Run migrations fresh, inspect raw SQL output with ORM logging enabled, and check connection string formatting.",
+                "url": "https://stackoverflow.com/questions/tagged/sqlalchemy",
+                "search_query": f"site:stackoverflow.com {title[:60]} database sql fix"
             },
             {
-                "match": ["cors", "cross-origin", "access-control", "preflight", "origin"],
+                "domain": "CORS",
+                "match": [r"cors", r"cross-origin", r"access-control", r"preflight"],
                 "source": "MDN Web Docs",
                 "title": "CORS Policy Configuration Error",
-                "advice": "CORS errors are server-side configuration issues. Ensure your backend sets `Access-Control-Allow-Origin` to the correct frontend domain. For credentialed requests, set `allow_credentials=True` and avoid wildcard origins.",
+                "advice": "CORS errors are server-side configuration issues. Ensure your backend sets Access-Control-Allow-Origin to the correct frontend domain. For credentialed requests, set allow_credentials=True and avoid wildcard origins.",
                 "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS/Errors",
                 "search_query": f"site:stackoverflow.com {title[:60]} CORS fix"
             },
         ]
 
+        # 1. PRIMARY: Match based on LLM-locked Tech Domain
         for pattern in tech_patterns:
-            if any(kw in text for kw in pattern["match"]):
-                suggestion = {
-                    "source": pattern["source"],
-                    "title": pattern["title"],
-                    "advice": pattern["advice"],
-                    "url": pattern["url"],
-                    "search_query": pattern.get("search_query", ""),
-                    "articles": self._generate_related_articles(pattern["match"], title, issue_type)
-                }
-                suggestions.append(suggestion)
-                if len(suggestions) >= 3:
-                    break
+            if tech_domain.lower() == pattern["domain"].lower():
+                suggestions.append(self._build_suggestion(pattern, title, issue_type))
+                break
 
-        # Stack trace specific advice
-        if nlp_data.get("has_stack_trace") and len(suggestions) < 3:
-            suggestions.append({
-                "source": "Debugging Best Practices",
-                "title": "Stack Trace Root Cause Analysis",
-                "advice": "The attached stack trace points to a crash in runtime code. Identify the innermost frame of YOUR code (not a library frame), add logging at that call site, and isolate inputs that trigger the crash.",
-                "url": "https://stackoverflow.com/questions/tagged/stack-trace",
-                "search_query": f"site:stackoverflow.com {title[:50]} error traceback fix",
-                "articles": self._generate_related_articles(["error", "trace", "debug"], title, issue_type)
-            })
+        # 2. SECONDARY: Regex boundary matching for fallback
+        if not suggestions:
+            for pattern in tech_patterns:
+                for kw in pattern["match"]:
+                    if re.search(r'\b' + kw + r'\b', text):
+                        suggestions.append(self._build_suggestion(pattern, title, issue_type))
+                        break
+                if len(suggestions) >= 2: break
 
-        # Fallback based on issue type
+        # 3. Final Fallback based on issue type
         if not suggestions:
             if issue_type == "bug":
                 suggestions.append({
@@ -304,6 +290,17 @@ class IssueAnalyzer:
 
         return suggestions
 
+    def _build_suggestion(self, pattern: dict, title: str, issue_type: str) -> dict:
+        """Helper to build a standardized suggestion object."""
+        return {
+            "source": pattern["source"],
+            "title": pattern["title"],
+            "advice": pattern["advice"],
+            "url": pattern["url"],
+            "search_query": pattern.get("search_query", ""),
+            "articles": self._generate_related_articles(pattern["match"], title, issue_type)
+        }
+
     def _generate_related_articles(self, keywords: list, title: str, issue_type: str) -> list:
         """Generates simulated AI-searched article results relevant to the issue."""
         clean_title = re.sub(r'[^\w\s]', '', title[:50]).strip()
@@ -333,6 +330,11 @@ class IssueAnalyzer:
                 {"title": "Optional Chaining in JavaScript", "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Optional_chaining", "domain": "mdn.dev"},
                 {"title": "TypeScript Strict Null Checks", "url": "https://www.typescriptlang.org/tsconfig#strictNullChecks", "domain": "typescriptlang.org"},
                 {"title": "NullPointerException: Root Cause Analysis", "url": "https://stackoverflow.com/questions/218384/what-is-a-nullpointerexception", "domain": "stackoverflow.com"},
+            ],
+            "rust": [
+                {"title": "The Rust Programming Language: Traits", "url": "https://doc.rust-lang.org/book/ch10-02-traits.html", "domain": "rust-lang.org"},
+                {"title": "Understanding Send and Sync traits", "url": "https://doc.rust-lang.org/nomicon/send-and-sync.html", "domain": "rust-lang.org"},
+                {"title": "Rust Lifetimes and Borrow Checker", "url": "https://doc.rust-lang.org/book/ch10-03-lifetime-syntax.html", "domain": "rust-lang.org"},
             ],
             "default": [
                 {"title": f"How to reproduce and fix: {clean_title}", "url": f"https://stackoverflow.com/search?q={clean_title.replace(' ', '+')}", "domain": "stackoverflow.com"},
@@ -366,6 +368,7 @@ class IssueAnalyzer:
         
         tech_labels = {
             "react": "react", "python": "python", "docker": "docker",
+            "rust": "rust",
             "typescript": "typescript", "kubernetes": "kubernetes",
             "github actions": "ci/cd", "database": "database"
         }
@@ -378,31 +381,3 @@ class IssueAnalyzer:
             labels.append("needs: more info")
             
         return list(set(labels))[:5]
-
-    def _generate_reply(self, title: str, issue_type: str, priority: str, similar_issues: list, nlp_data: dict, metadata: any) -> str:
-        base = f"Thank you for reporting this. After automated analysis, here's what we found:\n\n"
-        
-        if similar_issues:
-            dup = similar_issues[0]
-            sim_pct = int(dup['similarity'] * 100)
-            base += f"🔍 **Possible Duplicate ({sim_pct}% match)**: This issue appears similar to {dup['id']} — *{dup['title']}*. Please check if your problem is addressed there before we investigate further.\n\n"
-        
-        if issue_type == "bug":
-            if priority in ["critical", "high"]:
-                base += "🚨 **High Priority Bug**: This has been automatically flagged as high priority based on severity signals in the report.\n\n"
-                base += "To help us resolve this faster, please provide:\n- A **minimal reproduction repository or code snippet**\n- Your **environment details** (OS, runtime/browser version, package version)\n- Whether this is a **regression** (was working before)?\n\n"
-            else:
-                base += "🐛 **Bug Report Received**: This has been added to our triage queue.\n\n"
-                if nlp_data.get("has_stack_trace"):
-                    base += "We noticed a stack trace in your report — great! To confirm the root cause, could you also share:\n- Steps to reproduce\n- Expected vs actual behavior\n\n"
-                else:
-                    base += "To speed up diagnosis, please add:\n- Steps to reproduce\n- Minimal code example if possible\n- Expected vs actual behavior\n\n"
-        elif issue_type == "feature":
-            base += "✨ **Feature Request**: Thank you for the proposal.\n\n"
-            base += "We'll evaluate this against our roadmap and community interest. If you'd like to see this prioritized, please:\n- 👍 React with a thumbs up to gauge demand\n- Share your specific use case in a comment\n- Check if a plugin/workaround already exists\n\n"
-        else:
-            base += "❓ **Question**: This looks like a usage question.\n\n"
-            base += "Please check our [documentation](https://docs.example.com) and existing issues first. If your question remains unanswered, a maintainer will respond shortly.\n\n"
-            
-        base += "---\n*This response was auto-generated by OpenIssue AI. A maintainer will follow up.*"
-        return base

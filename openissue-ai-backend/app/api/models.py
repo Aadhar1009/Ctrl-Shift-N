@@ -56,6 +56,7 @@ class AnalysisResponse(BaseModel):
     explanation: List[str]
     reasoning_steps: List[ReasoningStep]
     suggested_reply: str
+    is_llm_generated: bool = False
     web_suggestions: List[WebSuggestion]
     suggested_labels: List[str]
     confidence_overall: float
