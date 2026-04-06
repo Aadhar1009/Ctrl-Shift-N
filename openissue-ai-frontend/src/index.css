@@ -2,6 +2,7 @@
 @import "tailwindcss";
 
 @theme {
+  /* Core design tokens */
   --color-background: #030712;
   --color-surface: #0d1117;
   --color-surface-2: #161b22;
