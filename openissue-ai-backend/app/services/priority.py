@@ -12,6 +12,8 @@ class PriorityScorer:
             "urgent": 25, "asap": 20, "memory leak": 30, "security": 40,
             "data loss": 45, "regression": 25, "broken": 20, "production": 30,
             "outage": 40, "vulnerability": 45, "exploit": 45, "panic": 35,
+            "freeze": 20,
+            "not responding": 25,
         }
         for kw, pts in severity_map.items():
             if re.search(r'\b' + re.escape(kw) + r'\b', text_lower):
