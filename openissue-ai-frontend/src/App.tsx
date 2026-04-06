@@ -243,7 +243,7 @@ function App() {
         <footer className="border-t border-[#30363d]/50 py-8 px-6 text-center">
           <p className="text-sm text-[#484f58]">
             Built with <span className="text-[#f85149]">♥</span> using FastAPI, spaCy, FAISS & React ·{' '}
-            <span className="text-[#30363d]">No data stored · Public issues only</span>
+            <span className="text-[#30363d]">No data stored. Public repositories only.</span>
           </p>
         </footer>
       )}
