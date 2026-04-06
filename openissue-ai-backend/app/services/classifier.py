@@ -15,13 +15,13 @@ class IssueClassifier:
         if nlp_data.get("has_stack_trace", False):
             signals["bug"] += 0.4
             
-        bug_keywords = ["crash", "error", "broken", "fails", "exception", "bug", "issue", "doesn't work"]
+        bug_keywords = ["crash", "error", "broken", "fails", "exception", "bug", "issue", "doesn't work", "regression", "panic", "freeze"]
         for kw in bug_keywords:
             if re.search(r'\b' + kw + r'\b', text_lower):
                 signals["bug"] += 0.15
                 
         # 2. Feature signals
-        feature_keywords = ["add", "support", "would like", "feature", "enhancement", "proposal", "improve"]
+        feature_keywords = ["add", "support", "would like", "feature", "enhancement", "proposal", "improve", "wishlist", "request"]
         for kw in feature_keywords:
             if re.search(r'\b' + kw + r'\b', text_lower):
                 signals["feature"] += 0.15
