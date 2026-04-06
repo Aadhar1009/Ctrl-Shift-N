@@ -1,3 +1,4 @@
+# Domain-Locked Web Suggestions Module
 from app.services.nlp_processor import NLPProcessor
 from app.services.classifier import IssueClassifier
 from app.services.priority import PriorityScorer
