@@ -11,7 +11,7 @@ class LLMGenerator:
     def __init__(self):
         self.api_key = settings.GEMINI_API_KEY
         self.base_url = "https://generativelanguage.googleapis.com/v1beta/models"
-        self.models = ["gemini-2.0-flash", "gemini-2.5-flash"]  # Ordered fallback list
+        self.models = ["gemini-3.1-flash-lite-preview", "gemini-2.5-flash-lite", "gemini-2.5-flash"]  # Avoid 2.0 to bypass rate limits
 
     def _is_available(self) -> bool:
         return bool(self.api_key) and self.api_key != "your_gemini_api_key_here"
