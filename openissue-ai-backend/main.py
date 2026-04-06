@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.models import AnalysisRequest, AnalysisResponse
 from app.services.analyzer import IssueAnalyzer
+from app.services.github_webhook import GitHubWebhookHandler
 
 import time
 import re
@@ -27,6 +28,7 @@ app.add_middleware(
 )
 
 analyzer = IssueAnalyzer()
+webhook_handler = GitHubWebhookHandler(analyzer)
 
 @app.on_event("startup")
 async def startup_event():
@@ -113,7 +115,23 @@ async def analyze_issue(request: AnalysisRequest):
         raise HTTPException(status_code=500, detail=f"Analysis engine error: {str(e)}")
 
 
-@app.post("/api/webhook/github")
+@app.post("/webhook/github")
 async def github_webhook(request: Request, background_tasks: BackgroundTasks):
     """GitHub repository webhook endpoint."""
-    return {"status": "Webhook operational."}
+    # 1. Read raw payload & headers
+    payload_body = await request.body()
+    signature_header = request.headers.get("x-hub-signature-256", "")
+    event_type = request.headers.get("x-github-event", "")
+
+    # 2. Verify signature (will raise HTTPException if invalid)
+    webhook_handler.verify_signature(payload_body, signature_header)
+
+    try:
+        payload_json = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    # 3. Process asynchronously
+    background_tasks.add_task(webhook_handler.process_webhook, event_type, payload_json)
+    
+    return {"status": "Accepted", "message": "Webhook received and processing in background."}
