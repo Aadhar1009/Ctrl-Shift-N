@@ -61,7 +61,9 @@ class NLPProcessor:
             r"Error:",
             r"\s+at\s+[\w\.\/<>]+\.[\w<>]+",  # JS/Java 'at Module.function'
             r".java:\d+",
-            r".tsx:\d+"
+            r".tsx:\d+",
+            r"panic: runtime error",
+            r"Segmentation fault"
         ]
         text_lower = text
         for kw in trace_keywords:
