@@ -69,8 +69,8 @@ class LLMGenerator:
 
     async def generate_reasoned_analysis(self, title: str, body: str, signals: Dict[str, Any]) -> Dict[str, Any]:
         """
-        PRIMARY AI BRAIN: Generates classification, priority, labels, tech_domain, and reply.
-        This is the core intelligence that replaces all hardcoded arrays.
+        PRIMARY AI BRAIN: Generates classification, priority, labels, tech_domain, web suggestions, reasoning trace, and reply ALL AT ONCE.
+        This drops network roundtrips from 4 down to 1 for snappy latency.
         """
         if not self._is_available():
             logger.warning("GEMINI_API_KEY not found. LLM reasoning disabled.")
@@ -78,7 +78,7 @@ class LLMGenerator:
 
         prompt = f"""
         You are 'OpenIssue AI', a production-grade Autonomous GitHub Issue Triage Engine.
-        Your task is to analyze the following GitHub issue and return a structured JSON response.
+        Your task is to analyze the following GitHub issue and return a comprehensive structured JSON response.
 
         ISSUE DETAILS:
         Title: {title}
@@ -88,23 +88,37 @@ class LLMGenerator:
         INSTRUCTIONS:
         1. Classify the issue as exactly one of: [Bug, Feature, Question, Query, Procedure, Method].
         2. Determine Priority as exactly one of: [Low, Medium, High, Critical].
-        3. Identify the 'tech_domain' — the specific technology area (e.g., 'React', 'Python', 'Rust', 'Docker', 'Auth', 'Database', 'TypeScript', 'CI/CD', 'Networking', 'Security', 'None').
+        3. Identify the 'tech_domain' — the specific technology area (e.g., 'React', 'Python', 'Rust', 'Docker', 'Auth', 'Database', 'TypeScript', 'CI/CD', 'Security', 'None').
         4. Suggest 3-5 native GitHub labels appropriate for this issue.
         5. Write a professional, technical 'response' (under 200 words) in Markdown that a maintainer would post as a comment.
+        6. Provide 2 'web_suggestions'. Each must have 'title', 'source', 'advice', 'query', and 'articles' (array of objects with 'title', 'url', 'domain').
+        7. Provide a 4-step 'reasoning_trace'. Each step is an object with 'step', 'detail', and 'confidence'.
 
-        RETURN ONLY THIS JSON FORMAT:
+        RETURN ONLY THIS EXACT JSON FORMAT:
         {{
             "classification": "ClassificationType",
             "priority": "PriorityLevel",
             "labels": ["label1", "label2"],
             "tech_domain": "DomainName",
-            "response": "Markdown response text here..."
+            "response": "Markdown response text here...",
+            "web_suggestions": [
+                 {{
+                     "title": "Title",
+                     "source": "Source",
+                     "advice": "Advice text",
+                     "query": "Search query",
+                     "articles": [{{"title": "Article", "url": "URL", "domain": "Domain"}}]
+                 }}
+            ],
+            "reasoning_trace": [
+                 {{"step": "Step 1", "detail": "Reason text", "confidence": "High"}}
+            ]
         }}
         """
 
         result = await self._call_gemini(prompt)
         if result:
-            logger.info(f"LLM Core Analysis: {result.get('classification')} / {result.get('tech_domain')}")
+            logger.info(f"LLM Core Analysis (Unified): {result.get('classification')} / {result.get('tech_domain')}")
         return result
 
     async def generate_dynamic_web_suggestions(self, title: str, body: str, tech_domain: str, issue_type: str, entities: list) -> Optional[list]:
