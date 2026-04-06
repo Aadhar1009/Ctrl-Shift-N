@@ -34,14 +34,14 @@ class LLMGenerator:
         for model_name in self.models:
             endpoint = f"{self.base_url}/{model_name}:generateContent?key={self.api_key}"
             
-            for attempt in range(3):  # 3 retries per model
+            for attempt in range(2):  # 2 retries per model to fail fast
                 try:
-                    async with httpx.AsyncClient(timeout=25.0) as client:
+                    async with httpx.AsyncClient(timeout=15.0) as client:
                         response = await client.post(endpoint, json=payload)
                         
                         if response.status_code == 429:
-                            wait_time = (attempt + 1) * 2  # 2s, 4s, 6s backoff
-                            logger.warning(f"Rate limited on {model_name} (attempt {attempt+1}/3). Waiting {wait_time}s...")
+                            wait_time = 1.0 + (attempt * 0.5)  # 1s, 1.5s backoff
+                            logger.warning(f"Rate limited on {model_name} (attempt {attempt+1}/2). Waiting {wait_time}s...")
                             await asyncio.sleep(wait_time)
                             continue
                         
